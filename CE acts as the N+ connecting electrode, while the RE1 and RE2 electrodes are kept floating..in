@@ -1,0 +1,122 @@
+# Call the simulation engine
+go atlas
+mesh three.d 
+
+# Set the mesh
+x.m  l=0.0 spac=0.05
+x.m  l=0.4 spac=0.05
+x.m  l=0.7 spac=0.05
+x.m  l=1 spac=0.05
+x.m  l=1.1 spac=0.05
+x.m  l=1.4 spac=0.05
+x.m  l=1.7 spac=0.05
+x.m  l=2.1 spac=0.05
+
+y.m  l=-0.1  spac=0.05
+y.m  l=0      spac=0.05
+y.m  l=0.1    spac=0.05
+y.m  l=0.2    spac=0.05
+y.m  l=0.5     spac=0.05
+
+z.m  l=0.0 spac=0.05
+z.m  l=0.4 spac=0.05
+z.m  l=0.7 spac=0.05
+z.m  l=1 spac=0.05
+z.m  l=1.1 spac=0.05
+z.m  l=1.4 spac=0.05
+z.m  l=1.7 spac=0.05
+z.m  l=2.1 spac=0.05
+
+# specifying the region and material
+region     num=1 y.min=-0.1 y.max=0 x.min=0 x.max=2.1 z.min=0 z.max=2.1 oxide
+region     num=2 y.min=0 y.max=0.5 x.min=0 x.max=2.1 z.min=0 z.max=2.1 silicon
+
+# specifying the electrodes
+elec   num=3 x.min=0.4 x.max=1.7 z.min=0.4 z.max=0.5 y.min=-0.1 y.max=-0.05 name=ring1
+elec   num=3 x.min=0.4 x.max=1.7 z.min=1.6 z.max=1.7 y.min=-0.1 y.max=-0.05 name=ring1
+elec   num=3 x.min=0.4 x.max=0.5 z.min=0.5 z.max=1.6 y.min=-0.1 y.max=-0.05 name=ring1
+elec   num=3 x.min=1.6 x.max=1.7 z.min=0.5 z.max=1.6 y.min=-0.1 y.max=-0.05 name=ring1
+
+elec   num=3 x.min=0.7 x.max=1.4 z.min=0.7 z.max=0.8 y.min=-0.1 y.max=-0.05 name=ring2
+elec   num=3 x.min=0.7 x.max=1.4 z.min=1.3 z.max=1.4 y.min=-0.1 y.max=-0.05 name=ring2
+elec   num=3 x.min=0.7 x.max=0.8 z.min=0.8 z.max=1.3 y.min=-0.1 y.max=-0.05 name=ring2
+elec   num=3 x.min=1.3 x.max=1.4 z.min=0.8 z.max=1.3 y.min=-0.1 y.max=-0.05 name=ring2
+
+elec   num=1 x.min=0.95 x.max=1.15 z.min=0.95 z.max=1.15 y.min=-0.1 y.max=0 name=anode
+
+elec   num=2 x.min=0  x.max=2.1  z.min=0  z.max=0.1  y.min=-0.1 y.max=0 name=cathode
+elec   num=2 x.min=0  x.max=2.1  z.min=2  z.max=2.1  y.min=-0.1 y.max=0 name=cathode
+elec   num=2 x.min=0  x.max=0.1  z.min=0  z.max=2.1  y.min=-0.1 y.max=0 name=cathode
+elec   num=2 x.min=2  x.max=2.1  z.min=0  z.max=2.1  y.min=-0.1 y.max=0 name=cathode
+
+# Set the parameters for P-sub and N+
+doping reg=2 uniform P.type conc=2e15 
+doping uniform conc=1e19 n.type junc=0.1 x.left=0.25 x.right=1.85  z.left=0.25 z.right=1.85 ratio.lat=2.4
+
+# Store and output simulation results, generate device structure
+save outf=structure_1.str
+tonyplot3d structure_1.str
+
+# Call the simulation engine
+go atlas
+
+# Load the device structure
+mesh infile=structure_1.str
+
+# Set light beam using solar spectrum from external file
+beam num=1 x.origin=1 z.origin=1 y.origin=-0.5 angle=90.0 power.file=solarex01.spec
+output opt.int
+
+# Set the physical models for the semiconductor device for subsequent simulation
+models conmob fldmob consrh print
+
+# get short circuit current
+solve init
+solve previous
+log outf=electro.log
+solve b1=1
+extract name="short_circuit_current" max(abs(i."anode"))
+save outf=electro_01.str
+tonyplot3d electro_01.str
+
+# get open circuit voltage
+solve init
+solve previous
+contact name=anode current
+solve ianode=0 b1=101
+solve ianode=0 b1=50
+solve ianode=0 b1=10
+solve ianode=0 b1=5
+solve ianode=0 b1=1
+extract name="open_circuit_voltage" max(abs(vint."anode"))
+save outf=electro_02.str
+
+# Call the simulation engine
+go atlas
+
+# Load the device structure
+mesh infile=structure_1.str
+
+# set light beam using solar spectrum from external file
+beam num=1 x.origin=1 z.origin=1 y.origin=-0.5 angle=90.0 power.file=solarex01.spec
+
+# saves optical intensity to solution files
+output opt.int
+
+# saves beam intensity to the log files
+probe name=inten beam=1 intensity
+
+# Set the physical models for the semiconductor device for subsequent simulation
+models conmob fldmob consrh
+
+# Calculate the load curve of the solar cell
+solve init
+solve previous
+solve b1=1
+log outfile=electro_4.log
+solve vcathode=-0.01 vstep=-0.01 vfinal=-1*$open_circuit_voltage \
+      name=anode b1=1
+log off
+tonyplot electro_4.log 
+
+quit

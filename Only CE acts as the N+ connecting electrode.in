@@ -1,0 +1,132 @@
+go atlas
+mesh three.d 
+
+x.m  l=0.0 spac=0.05
+x.m  l=0.4 spac=0.05
+x.m  l=0.7 spac=0.05
+x.m  l=1 spac=0.05
+x.m  l=1.1 spac=0.05
+x.m  l=1.4 spac=0.05
+x.m  l=1.7 spac=0.05
+x.m  l=2.1 spac=0.05
+
+y.m  l=-0.1  spac=0.05
+y.m  l=0      spac=0.05
+y.m  l=0.1    spac=0.05
+y.m  l=0.2    spac=0.05
+y.m  l=0.5     spac=0.05
+
+
+z.m  l=0.0 spac=0.05
+z.m  l=0.4 spac=0.05
+z.m  l=0.7 spac=0.05
+z.m  l=1 spac=0.05
+z.m  l=1.1 spac=0.05
+z.m  l=1.4 spac=0.05
+z.m  l=1.7 spac=0.05
+z.m  l=2.1 spac=0.05
+
+
+# specifying the region and material
+
+region     num=1 y.min=-0.1 y.max=0 x.min=0 x.max=2.1 z.min=0 z.max=2.1 oxide
+region     num=2 y.min=0 y.max=0.5 x.min=0 x.max=2.1 z.min=0 z.max=2.1 silicon
+
+
+# specifying the electrodes
+
+#elec   num=1 x.min=0.4 x.max=1.7 z.min=0.4 z.max=0.5 y.min=-0.1 y.max=-0.05 name=ring1
+#elec   num=1 x.min=0.4 x.max=1.7 z.min=1.6 z.max=1.7 y.min=-0.1 y.max=-0.05 name=ring1
+#elec   num=1 x.min=0.4 x.max=0.5 z.min=0.5 z.max=1.6 y.min=-0.1 y.max=-0.05 name=ring1
+#elec   num=1 x.min=1.6 x.max=1.7 z.min=0.5 z.max=1.6 y.min=-0.1 y.max=-0.05 name=ring1
+
+
+#elec   num=2 x.min=0.7 x.max=1.4 z.min=0.7 z.max=0.8 y.min=-0.1 y.max=-0.05 name=ring2
+#elec   num=2 x.min=0.7 x.max=1.4 z.min=1.3 z.max=1.4 y.min=-0.1 y.max=-0.05 name=ring2
+#elec   num=2 x.min=0.7 x.max=0.8 z.min=0.8 z.max=1.3 y.min=-0.1 y.max=-0.05 name=ring2
+#elec   num=2 x.min=1.3 x.max=1.4 z.min=0.8 z.max=1.3 y.min=-0.1 y.max=-0.05 name=ring2
+
+
+elec   num=1 x.min=0.95 x.max=1.15 z.min=0.95 z.max=1.15 y.min=-0.1 y.max=0 name=anode
+
+
+
+elec   num=2 x.min=0  x.max=2.1  z.min=0  z.max=0.1  y.min=-0.1 y.max=0 name=cathode
+elec   num=2 x.min=0  x.max=2.1  z.min=2  z.max=2.1  y.min=-0.1 y.max=0 name=cathode
+elec   num=2 x.min=0  x.max=0.1  z.min=0.1  z.max=2  y.min=-0.1 y.max=0 name=cathode
+elec   num=2 x.min=2  x.max=2.1  z.min=0.1  z.max=2  y.min=-0.1 y.max=0 name=cathode
+
+
+
+doping reg=2 uniform P.type conc=2e15 
+doping uniform conc=1e19 n.type junc=0.1 x.left=0.25 x.right=1.85  z.left=0.25 z.right=1.85 ratio.lat=2.4
+
+
+save outf=structure_1.str
+tonyplot3d structure_1.str
+
+go atlas
+mesh infile=structure_1.str
+beam num=1 x.origin=1 z.origin=1 y.origin=-0.5 angle=90.0 power.file=solarex01.spec
+
+output opt.int
+
+models conmob fldmob consrh print
+
+solve init
+solve previous
+
+# get short circuit current
+log outf=electro.log
+solve b1=1
+
+extract name="short_circuit_current" max(abs(i."anode"))
+save outf=electro_01.str
+
+tonyplot3d electro_01.str
+
+# get open circuit voltage
+solve init
+solve previous
+contact name=anode current
+solve ianode=0 b1=100
+solve ianode=0 b1=1
+
+extract name="open_circuit_voltage" max(abs(vint."anode"))
+save outf=electro_02.str
+tonyplot electro_02.str
+
+
+go atlas
+
+mesh infile=structure_1.str
+
+# set light beam using solar spectrum from external file
+beam num=1 x.origin=1 z.origin=1 y.origin=-0.5 angle=90.0 power.file=solarex01.spec
+
+# saves optical intensity to solution files
+output opt.int
+
+# saves beam intensity to the log files
+probe name=inten beam=1 intensity
+
+models conmob fldmob consrh
+
+#solve init
+#solve previous
+#log outfile=electro_3.log
+#solve vcathode=-0.01 vstep=-0.01 vfinal=-1*$open_circuit_voltage name=anode
+#log off
+
+solve init
+solve previous
+solve b1=100
+log outfile=electro_4.log
+solve vcathode=-0.01 vstep=-0.01 vfinal=-1*$open_circuit_voltage \
+      name=anode b1=1
+log off
+
+tonyplot electro_4.log
+
+
+quit
